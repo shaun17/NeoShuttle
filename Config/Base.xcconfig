@@ -1,0 +1,9 @@
+// Shared build settings for everyone who clones the repo.
+// Put your own signing values in Signing.local.xcconfig (git-ignored);
+// see Signing.local.xcconfig.example. Without it the app is signed to run locally.
+
+BUNDLE_ID_PREFIX = com.example
+DEVELOPMENT_TEAM =
+CODE_SIGN_IDENTITY = -
+
+#include? "Signing.local.xcconfig"

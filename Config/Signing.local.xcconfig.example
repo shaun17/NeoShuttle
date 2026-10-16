@@ -1,0 +1,7 @@
+// Copy to Signing.local.xcconfig (git-ignored) and fill in your own values.
+// A real team keeps macOS Automation / Accessibility permissions across rebuilds;
+// ad-hoc signatures change every build, so macOS asks again.
+
+BUNDLE_ID_PREFIX = com.yourname
+DEVELOPMENT_TEAM = YOURTEAMID
+CODE_SIGN_IDENTITY = Apple Development

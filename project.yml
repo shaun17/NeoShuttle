@@ -1,0 +1,79 @@
+name: NeoShuttle
+
+options:
+  developmentLanguage: zh-Hans
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  NeoShuttleCore:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: Sources/NeoShuttleCore
+    settings:
+      base:
+        PRODUCT_NAME: NeoShuttleCore
+        SKIP_INSTALL: YES
+
+  NeoShuttle:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/NeoShuttle
+    dependencies:
+      - target: NeoShuttleCore
+    entitlements:
+      path: Config/NeoShuttle.entitlements
+      properties:
+        com.apple.security.automation.apple-events: true
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: NeoShuttle
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: "MIT License. Inspired by fitztrev/shuttle."
+        NSAppleEventsUsageDescription: "NeoShuttle 需要控制终端应用，才能执行你在菜单中选择的命令。"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).neoshuttle
+
+  NeoShuttleCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/NeoShuttleCoreTests
+    dependencies:
+      - target: NeoShuttleCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).neoshuttle.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  NeoShuttle:
+    build:
+      targets:
+        NeoShuttle: all
+        NeoShuttleCoreTests: [test]
+    test:
+      targets:
+        - NeoShuttleCoreTests

@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = menu
         statusItem = item
         NSApp.mainMenu = Self.mainMenu()
+        // In-process icon lookups (the About panel's own, alerts) return the blank placeholder
+        // here, so the icon is drawn from the bundle's artwork instead.
+        if let icon = Self.appIcon { NSApp.applicationIconImage = icon }
         AppPreferences.applyActivationPolicy(settingsOpen: false)
         #if DEBUG
         // Lets tests open the settings window the way the menu does: while another app is frontmost.
@@ -31,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             MainActor.assumeIsolated { self?.openSettings() }
         }
         runDebugLaunchIfRequested()
+        if CommandLine.arguments.contains("--debug-about") { showAbout() }
         if CommandLine.arguments.contains("--debug-open-settings") {
             openSettings()
             let args = CommandLine.arguments
@@ -216,7 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return item
         }
         submenu("NeoShuttle", [
-            item("关于 NeoShuttle", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), ""),
+            // Sent up the responder chain to the app delegate, so both About entries show the link.
+            item("关于 NeoShuttle", #selector(AppDelegate.showAbout), ""),
             .separator(),
             item("隐藏 NeoShuttle", #selector(NSApplication.hide(_:)), "h"),
             .separator(),
@@ -278,9 +283,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func showAbout() {
+    static let projectURL = URL(string: "https://github.com/shaun17/NeoShuttle")!
+
+    /// The full-bleed artwork from the asset catalog, inset to Apple's icon grid (an 824 px
+    /// body on a 1024 canvas) and clipped to rounded corners, the way Finder masks it.
+    /// Drawn on demand, so it stays sharp at whatever size it's shown.
+    static let appIcon: NSImage? = {
+        guard let artwork = NSImage(named: "AppIcon") else { return nil }
+        return NSImage(size: NSSize(width: 128, height: 128), flipped: false) { rect in
+            let body = rect.insetBy(dx: rect.width * 100 / 1024, dy: rect.height * 100 / 1024)
+            let radius = body.width * 0.225
+            NSBezierPath(roundedRect: body, xRadius: radius, yRadius: radius).addClip()
+            artwork.draw(in: body)
+            return true
+        }
+    }()
+
+    /// The standard About panel, with a clickable link to the project in the credits area.
+    @objc func showAbout() {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        let base: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraph,
+        ]
+        let credits = NSMutableAttributedString(string: "菜单栏快捷命令工具，原生重写自 Shuttle\n", attributes: base)
+        var link = base
+        link[.link] = Self.projectURL
+        credits.append(NSAttributedString(string: Self.projectURL.absoluteString.replacingOccurrences(of: "https://", with: ""), attributes: link))
         NSApp.activate()
-        NSApp.orderFrontStandardAboutPanel(nil)
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [.credits: credits]
+        // Passed explicitly: the panel's own lookup returns the blank placeholder in this process.
+        if let icon = Self.appIcon { options[.applicationIcon] = icon }
+        NSApp.orderFrontStandardAboutPanel(options: options)
     }
 
     @objc private func quit() {

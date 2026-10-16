@@ -38,7 +38,7 @@ struct HostsEditorView: View {
                 .buttonStyle(.borderless)
                 .padding(8)
             }
-            .frame(minWidth: 220, idealWidth: 270, maxWidth: 380)
+            .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
 
             detail
                 .frame(minWidth: 460, maxWidth: .infinity, maxHeight: .infinity)

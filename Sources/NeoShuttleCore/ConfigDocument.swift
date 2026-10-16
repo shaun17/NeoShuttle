@@ -154,6 +154,23 @@ public struct ConfigDocument: Sendable, Equatable {
         return result.map { (id: $0.0, path: $0.1) }
     }
 
+    /// Every entry in every group, in file order.
+    public var allEntries: [ConfigEntry] {
+        func collect(_ nodes: [ConfigNode]) -> [ConfigEntry] {
+            nodes.flatMap { node -> [ConfigEntry] in
+                switch node {
+                case .entry(let entry): [entry]
+                case .group(let group): collect(group.children)
+                }
+            }
+        }
+        return collect(hosts)
+    }
+
+    public mutating func updateAllEntries(_ change: (inout ConfigEntry) -> Void) {
+        Self.forEachEntry(in: &hosts, change)
+    }
+
     /// Renames a custom terminal and every reference to it.
     public mutating func renameCustomTerminal(_ id: UUID, to newName: String) {
         guard let index = customTerminals.firstIndex(where: { $0.id == id }) else { return }

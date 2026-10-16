@@ -7,3 +7,6 @@ DerivedData/
 *.xcodeproj/
 # Personal signing (team ID, bundle prefix)
 Config/Signing.local.xcconfig
+# Installers built by Scripts/build_dmg.sh
+dist/
+*.dmg

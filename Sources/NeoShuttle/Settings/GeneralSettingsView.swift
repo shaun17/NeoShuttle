@@ -5,6 +5,7 @@ import NeoShuttleCore
 struct GeneralSettingsView: View {
     @Bindable var store: ConfigEditorStore
     @State private var launchAtLogin = LoginItem.isEnabled
+    @State private var showDockIcon = AppPreferences.showDockIcon
     @State private var customEditor = false
     @State private var showIgnoreRules = false
     @State private var refreshTick = 0
@@ -46,6 +47,21 @@ struct GeneralSettingsView: View {
                 Text("每个条目还可以单独指定")
             }
             .pickerStyle(.segmented)
+            if !modeOverrides.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle").foregroundStyle(.orange)
+                    Text(modeOverrideSummary)
+                        .foregroundStyle(.secondary)
+                        .help(modeOverrides.map { "\($0.menuName.title)：\(ModeChoice.label($0.mode ?? ""))" }
+                            .joined(separator: "\n"))
+                    Spacer()
+                    Button("全部改为跟随默认") {
+                        withAnimation(.snappy) { store.document.updateAllEntries { $0.mode = nil } }
+                    }
+                }
+                .font(.callout)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
             ThemePicker(value: defaultTheme, terminals: [.terminal, .iTerm],
                         noneLabel: "不设置", subtitle: themeHint, store: store)
         }
@@ -161,10 +177,32 @@ struct GeneralSettingsView: View {
                     Launcher.present(error)
                 }
             }
+            Toggle(isOn: $showDockIcon) {
+                Text("在 Dock 中常驻图标")
+                Text(showDockIcon ? "点击 Dock 图标打开设置" : "关闭时只在设置窗口打开期间显示")
+            }
+            .onChange(of: showDockIcon) { _, enabled in
+                AppPreferences.showDockIcon = enabled
+                // This window is open, so the icon stays until it closes either way.
+                AppPreferences.applyActivationPolicy(settingsOpen: true)
+            }
         }
     }
 
     // MARK: Descriptions
+
+    /// Entries with their own position: they ignore the default above.
+    private var modeOverrides: [ConfigEntry] {
+        store.document.allEntries.filter { !($0.mode ?? "").isEmpty }
+    }
+
+    private var modeOverrideSummary: String {
+        let names = modeOverrides.map(\.menuName.title)
+        let shown = names.prefix(2).joined(separator: "、")
+        return names.count > 2
+            ? "\(shown) 等 \(names.count) 个条目单独设置了位置，不跟随这里"
+            : "\(shown) 单独设置了位置，不跟随这里"
+    }
 
     private var themeHint: String {
         guard store.themeTerminal(nil) == nil else { return "Terminal 描述文件或 iTerm Profile" }

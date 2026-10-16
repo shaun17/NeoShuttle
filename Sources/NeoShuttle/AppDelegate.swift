@@ -11,14 +11,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let image = NSImage(systemSymbolName: "paperplane", accessibilityDescription: "NeoShuttle")
+        // A template image, so the menu bar tints it for light, dark and highlighted states.
+        let image = NSImage(named: "ShuttleMenuBar")
+            ?? NSImage(systemSymbolName: "paperplane", accessibilityDescription: "NeoShuttle")
         image?.isTemplate = true
+        image?.accessibilityDescription = "NeoShuttle"
         item.button?.image = image
         menu.delegate = self
         menu.autoenablesItems = false
         item.menu = menu
         statusItem = item
         NSApp.mainMenu = Self.mainMenu()
+        AppPreferences.applyActivationPolicy(settingsOpen: false)
         #if DEBUG
         // Lets tests open the settings window the way the menu does: while another app is frontmost.
         DistributedNotificationCenter.default().addObserver(
@@ -34,14 +38,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 settings.store.tab = ["general": .general, "terminals": .terminals][args[index + 1]] ?? .hosts
             }
             if args.contains("--debug-select-entry") {
-                // The first top-level entry in menu order.
-                settings.store.hostSelection = ConfigNode.menuOrder(settings.store.document.hosts)
-                    .first { if case .entry = $0 { true } else { false } }?.id
+                // After show() has reloaded the document (reloading assigns new ids).
+                DispatchQueue.main.async { [settings] in
+                    // The first top-level entry in menu order.
+                    settings.store.hostSelection = ConfigNode.menuOrder(settings.store.document.hosts)
+                        .first { if case .entry = $0 { true } else { false } }?.id
+                    if let index = args.firstIndex(of: "--debug-then-tab"), args.count > index + 1 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            settings.store.tab = args[index + 1] == "general" ? .general : .terminals
+                        }
+                    }
+                }
             }
             if args.contains("--debug-add-terminal") { settings.store.addTerminal() }
+            if args.contains("--debug-tab-focus") {
+                // Press Tab repeatedly and report every text field that receives focus.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [settings] in
+                    guard let window = settings.window else { return }
+                    var seen: [String] = []
+                    for _ in 0..<40 {
+                        window.selectNextKeyView(nil)
+                        if let field = window.firstResponder as? NSTextView, let owner = field.delegate as? NSTextField {
+                            seen.append("field[\(owner.placeholderString ?? owner.stringValue)] editable=\(field.isEditable)")
+                        } else if let text = window.firstResponder as? NSTextView {
+                            seen.append("\(type(of: text)) editable=\(text.isEditable) visible=\(text.alphaValue > 0 && !text.isHiddenOrHasHiddenAncestor)")
+                        } else if let control = window.firstResponder as? NSControl {
+                            seen.append("\(type(of: control)) enabled=\(control.isEnabled)")
+                        } else if let view = window.firstResponder as? NSView {
+                            seen.append(String(describing: type(of: view)))
+                        }
+                    }
+                    print(Array(NSOrderedSet(array: seen)).map { "\($0)" }.joined(separator: "\n"))
+                    fflush(stdout)
+                }
+            }
+            if args.contains("--debug-time-tabs") {
+                // Switch tabs and force layout + drawing synchronously, so each switch's full cost is measured.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [settings] in
+                    guard let view = settings.window?.contentView else { return }
+                    let clock = ContinuousClock()
+                    var lines: [String] = []
+                    for round in 0..<3 {
+                        for tab in [SettingsTab.general, .terminals, .hosts] {
+                            let elapsed = clock.measure {
+                                settings.store.tab = tab
+                                view.layoutSubtreeIfNeeded()
+                                view.displayIfNeeded()
+                            }
+                            lines.append("round \(round) -> \(tab): \(elapsed.formatted(.units(allowed: [.milliseconds], fractionalPart: .show(length: 1))))")
+                        }
+                    }
+                    print(lines.joined(separator: "\n"))
+                    fflush(stdout)
+                }
+            }
             if let index = args.firstIndex(of: "--debug-window-height"), args.count > index + 1,
                let height = Double(args[index + 1]), let window = settings.window {
-                window.setFrame(NSRect(x: window.frame.minX, y: 40, width: window.frame.width, height: height), display: true)
+                // Screenshot sizing only: applied after show() (which resets oversized frames)
+                // and never saved as the remembered size.
+                DispatchQueue.main.async {
+                    window.setFrameAutosaveName("")
+                    window.setFrame(NSRect(x: window.frame.minX, y: 40, width: window.frame.width, height: height), display: true)
+                }
             }
             if let index = args.firstIndex(of: "--debug-select-ssh"), args.count > index + 1 {
                 settings.store.hostSelection = settings.store.visibleSSHHosts.first { $0.host.alias == args[index + 1] }?.id
@@ -134,8 +192,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// Clicking the Dock icon while the settings window is open brings it back.
+    /// Clicking the Dock icon (shown while settings are open, or always if enabled) opens settings.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag, settings.window?.isVisible == false, NSApp.activationPolicy() == .regular { settings.show() }
+        if !flag { openSettings() }
         return true
     }
 

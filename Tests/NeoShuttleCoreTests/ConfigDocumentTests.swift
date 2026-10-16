@@ -125,6 +125,16 @@ final class ConfigDocumentTests: XCTestCase {
         XCTAssertEqual(db.terminal, config.terminal, "the entry that pointed at rio follows the rename")
     }
 
+    func testAllEntriesAndBulkUpdate() throws {
+        var doc = try document()
+        XCTAssertEqual(doc.allEntries.map(\.menuName.title), ["Jump", "db", "x"], "nested groups included, file order")
+        XCTAssertEqual(doc.allEntries.compactMap(\.mode), ["new"])
+        doc.updateAllEntries { $0.mode = nil }
+        XCTAssertTrue(doc.allEntries.allSatisfy { $0.mode == nil })
+        let saved = try object(doc.serialized())
+        XCTAssertFalse(String(describing: saved).contains("inTerminal"), "cleared modes leave no key behind")
+    }
+
     func testKeystrokeTerminalSerialization() throws {
         var doc = ConfigDocument()
         doc.customTerminals = [CustomTerminalSpec(name: "Hyper", kind: .keystroke, app: "Hyper", delay: 1.5)]

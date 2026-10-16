@@ -2,6 +2,22 @@
 
 用 Swift 原生重写的 [Shuttle](https://github.com/fitztrev/shuttle) 菜单栏快捷命令工具。Apple Silicon 原生运行，不需要 Rosetta。内置 8 种终端适配，其余终端可通过 `custom_terminals` 自行接入。
 
+## 安装
+
+```sh
+Scripts/build_dmg.sh
+```
+
+在 `dist/` 生成 `NeoShuttle-<版本>-development.dmg` 和对应的 `.sha256`。打开 DMG，把 NeoShuttle 拖到“应用程序”即可。这种包使用你本机的开发证书签名（没有配置时为临时签名），适合装在自己的 Mac 上。
+
+要发给别人用，需要 Developer ID 签名并经过 Apple 公证：
+
+```sh
+RELEASE_MODE=developer-id NOTARY_KEYCHAIN_PROFILE=<notarytool 的钥匙串配置名> Scripts/build_dmg.sh
+```
+
+`dist/` 和 DMG 都不会提交到仓库。
+
 ## 配置
 
 直接读取原来的 `~/.shuttle.json`。`~/.shuttle.path` 重定向、`~/.shuttle-alt.json` 追加、`~/.ssh/config` 合并（含 `Include` 和 `# shuttle.name`）、`[aaa]` 排序前缀、`[---]` 分隔线、`cmd` 为 URL 时直接打开，这些行为都与原版一致。每次打开菜单都会重新读取配置，改完不用重启；配置有问题时，菜单顶部会显示 ⚠️ 提示。文件不存在时会生成一份示例，已有文件不会被改写。

@@ -9,10 +9,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         store = ConfigEditorStore(launcher: launcher)
         let hosting = NSHostingController(rootView: SettingsView(store: store))
         hosting.sizingOptions = [.minSize]
+        // Lets the SwiftUI .toolbar (the page switcher) appear in the window's title bar.
+        hosting.sceneBridgingOptions = [.toolbars]
         let window = NSWindow(contentViewController: hosting)
         window.title = "NeoShuttle 设置"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 900, height: 600))
+        window.toolbarStyle = .unified
+        window.setContentSize(Self.defaultSize)
         window.isReleasedWhenClosed = false
         window.center()
         window.setFrameAutosaveName("NeoShuttleSettings")
@@ -24,11 +27,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    static let defaultSize = NSSize(width: 900, height: 600)
+
     func show() {
+        resetSizeIfOversized()
         // Pick up edits made in a text editor since the window was last open.
         if !store.isDirty { store.reload() } else { store.refreshSSHHosts() }
-        // A Dock icon while the window is open, so it can be found with ⌘Tab.
-        NSApp.setActivationPolicy(.regular)
+        AppPreferences.applyActivationPolicy(settingsOpen: true)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         // Under cooperative activation (macOS 14+) a menu-bar app's NSApp.activate() is
@@ -52,6 +57,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.window?.makeFirstResponder(nil)
         }
+    }
+
+    /// A remembered size taller than the screen (or nearly) comes back at the default size.
+    private func resetSizeIfOversized() {
+        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame
+        guard window.frame.height > visible.height * 0.9 || window.frame.width > visible.width * 0.95 else { return }
+        window.setContentSize(Self.defaultSize)
+        window.center()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -81,6 +95,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        AppPreferences.applyActivationPolicy(settingsOpen: false)
     }
 }

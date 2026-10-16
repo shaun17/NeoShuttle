@@ -14,6 +14,13 @@ struct CustomTerminalsView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .overlay {
+                    if store.document.customTerminals.isEmpty {
+                        Text("还没有自定义终端")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Divider()
                 HStack(spacing: 4) {
                     Button { store.addTerminal() } label: { Image(systemName: "plus") }
@@ -29,7 +36,7 @@ struct CustomTerminalsView: View {
                 .buttonStyle(.borderless)
                 .padding(8)
             }
-            .frame(minWidth: 200, idealWidth: 230, maxWidth: 320)
+            .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
 
             detail
                 .frame(minWidth: 460, maxWidth: .infinity, maxHeight: .infinity)

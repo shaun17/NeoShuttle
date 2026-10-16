@@ -9,23 +9,26 @@ struct SettingsView: View {
             if let error = store.loadError {
                 LoadErrorView(message: error, store: store)
             } else {
-                TabView(selection: $store.tab) {
-                    HostsEditorView(store: store)
-                        .tabItem { Label("菜单条目", systemImage: "list.bullet.indent") }
-                        .tag(SettingsTab.hosts)
-                    GeneralSettingsView(store: store)
-                        .tabItem { Label("通用", systemImage: "gearshape") }
-                        .tag(SettingsTab.general)
-                    CustomTerminalsView(store: store)
-                        .tabItem { Label("自定义终端", systemImage: "terminal") }
-                        .tag(SettingsTab.terminals)
-                }
-                .padding([.horizontal, .top], 12)
+                // Content fills the window; the tabs live in the title bar instead of a TabView box.
+                PageSwitcher(store: store, tab: store.tab)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Divider()
             footer
         }
         .frame(minWidth: 820, minHeight: 540)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("页面", selection: $store.tab) {
+                    Text("菜单条目").tag(SettingsTab.hosts)
+                    Text("通用").tag(SettingsTab.general)
+                    Text("自定义终端").tag(SettingsTab.terminals)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .disabled(store.loadError != nil)
+            }
+        }
     }
 
     private var footer: some View {
@@ -149,5 +152,56 @@ struct ThemePicker: View {
         let offered = (terminals.contains(.terminal) ? store.terminalProfiles : [])
             + (terminals.contains(.iTerm) ? store.iTermProfiles : [])
         return offered.contains(current) ? nil : current
+    }
+}
+
+/// Hosts each settings page in its own NSHostingView. All three are built when the window
+/// opens and switching only toggles `isHidden`: nothing is rebuilt (rebuilding a page's list,
+/// split view and form cost 20–115 ms, a visible stutter), and AppKit leaves hidden views out
+/// of the key-view loop, so Tab can't move focus into a page you can't see.
+private struct PageSwitcher: NSViewRepresentable {
+    let store: ConfigEditorStore
+    let tab: SettingsTab
+
+    func makeNSView(context: Context) -> PageContainer {
+        PageContainer(store: store)
+    }
+
+    func updateNSView(_ container: PageContainer, context: Context) {
+        container.show(tab)
+    }
+}
+
+private final class PageContainer: NSView {
+    private var pages: [SettingsTab: NSView] = [:]
+
+    init(store: ConfigEditorStore) {
+        super.init(frame: .zero)
+        let views: [(SettingsTab, NSView)] = [
+            (.hosts, NSHostingView(rootView: HostsEditorView(store: store))),
+            (.general, NSHostingView(rootView: GeneralSettingsView(store: store))),
+            (.terminals, NSHostingView(rootView: CustomTerminalsView(store: store))),
+        ]
+        for (tab, page) in views {
+            page.translatesAutoresizingMaskIntoConstraints = false
+            page.isHidden = true
+            addSubview(page)
+            NSLayoutConstraint.activate([
+                page.leadingAnchor.constraint(equalTo: leadingAnchor),
+                page.trailingAnchor.constraint(equalTo: trailingAnchor),
+                page.topAnchor.constraint(equalTo: topAnchor),
+                page.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+            pages[tab] = page
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func show(_ tab: SettingsTab) {
+        for (key, page) in pages {
+            page.isHidden = key != tab
+        }
     }
 }
